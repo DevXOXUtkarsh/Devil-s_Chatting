@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: linear-gradient(135deg, #6e8efb, #a777e3);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .profile {
+      display: flex;
+      align-items: center;
+    }
+
+    .profile-pic {
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      margin-right: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      padding: 10px;
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .message {
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .message img, .message video {
+      max-width: 100%;
+      border-radius: 5px;
+      max-height: 200px;
+    }
+
+    .message a {
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    .message-right {
+      justify-content: flex-end;
+      text-align: right;
+    }
+
+    .message-left {
+      justify-content: flex-start;
+      text-align: left;
+    }
+
+    .message-deleted {
+      color: red;
+      font-style: italic;
+    }
+
+    .delete-checkbox {
+      margin-right: 10px;
+    }
+
+    .input-container {
+      display: flex;
+      align-items: center;
+      border-top: 1px solid #ddd;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    input[type="text"], input[type="file"] {
+      flex: 1;
+      margin-right: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      outline: none;
+    }
+
+    button {
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    @media (max-width: 600px) {
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .input-container {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      input[type="text"], input[type="file"] {
+        width: 100%;
+      }
+
+      button {
+        width: 100%;
+        margin-top: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="profile">
+      <img id="currentProfilePic" class="profile-pic" src="#" alt="Profile Picture">
+      <span id="currentUsername"></span>
+    </div>
+    <button onclick="logout()">Logout</button>
+  </header>
+  <div class="chat-container">
+    <div class="messages" id="messages"></div>
+    <div class="input-container">
+      <input type="text" id="messageInput" placeholder="Type a message..." oninput="showTypingIndicator()">
+      <input type="file" id="fileInput">
+      <button onclick="sendMessage()">Send</button>
+      ${localStorage.getItem('isAdmin') === 'true' ? '<button onclick="deleteMessages()">Delete Selected</button>' : ''}
+    </div>
+  </div>
+
+  <script>
+    const currentUsername = localStorage.getItem('currentUser');
+    const currentProfilePic = localStorage.getItem('currentProfilePic');
+    const isAdmin = localStorage.getItem('isAdmin') === 'true';
+
+    document.getElementById('currentUsername').innerText = currentUsername;
+    document.getElementById('currentProfilePic').src = currentProfilePic;
+
+    function logout() {
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('currentProfilePic');
+      localStorage.removeItem('isAdmin');
+      window.location.href = 'index.html';
+    }
+
+    function sendMessage() {
+      const messageInput = document.getElementById('messageInput');
+      const fileInput = document.getElementById('fileInput');
+      const message = messageInput.value;
+      const file = fileInput.files[0];
+
+      if (message.trim() !== '' || file) {
+        const reader = new FileReader();
+        reader.onloadend = function() {
+          const chatMessage = {
+            username: currentUsername,
+            profilePic: currentProfilePic,
+            content: message || reader.result,
+            type: file ? file.type.split('/')[0] : 'text',
+            timestamp: new Date().toISOString(),
+            deleted: false
+          };
+
+          const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+          chatHistory.push(chatMessage);
+          localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+          displayMessages();
+
+          messageInput.value = '';
+          fileInput.value = '';
+        };
+
+        if (file) {
+          reader.readAsDataURL(file);
+        } else {
+          reader.onloadend();
+        }
+      }
+    }
+
+    function displayMessages() {
+      const messagesContainer = document.getElementById('messages');
+      const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+      messagesContainer.innerHTML = '';
+
+      chatHistory.forEach((message, index) => {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', message.username === currentUsername ? 'message-right' : 'message-left');
+        if (message.deleted) {
+          messageDiv.innerHTML = `<span class="message-deleted">This message was deleted by ${message.deletedBy}</span>`;
+        } else {
+          messageDiv.innerHTML = `
+            ${isAdmin ? `<input type="checkbox" class="delete-checkbox" data-index="${index}">` : ''}
+            <img class="profile-pic" src="${message.profilePic}" alt="Profile Picture">
+            <div>
+              <strong>${message.username}</strong>
+              <p>${formatMessageContent(message)}</p>
+            </div>
+            ${message.username === currentUsername || isAdmin ? `<button onclick="deleteMessage(${index})">Delete</button>` : ''}
+          `;
+        }
+        messagesContainer.appendChild(messageDiv);
+      });
+    }
+
+    function formatMessageContent(message) {
+      if (message.type === 'text') {
+        return message.content;
+      } else if (message.type === 'image') {
+        return `<img src="${message.content}" alt="Image">`;
+      } else if (message.type === 'video') {
+        return `<video controls><source src="${message.content}" type="video/mp4"></video>`;
+      } else {
+        return `<a href="${message.content}" download>Download File</a>`;
+      }
+    }
+
+    function deleteMessage(index) {
+      const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+      chatHistory[index].deleted = true;
+      chatHistory[index].deletedBy = isAdmin ? 'admin' : 'user';
+      localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+      displayMessages();
+    }
+
+    function deleteMessages() {
+      const checkboxes = document.querySelectorAll('.delete-checkbox:checked');
+      const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+      checkboxes.forEach(checkbox => {
+        const index = checkbox.dataset.index;
+        chatHistory[index].deleted = true;
+        chatHistory[index].deletedBy = 'admin';
+      });
+      localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+      displayMessages();
+    }
+
+    function showTypingIndicator() {
+      // Implement typing indicator logic here
+    }
+
+    displayMessages();
+  </script>
+</body>
+</html>
