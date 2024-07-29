@@ -37,7 +37,6 @@
       height: 50px;
       object-fit: cover;
       margin-right: 10px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
 
     .chat-container {
@@ -66,14 +65,10 @@
     }
 
     .message img, .message video {
-      max-width: 100%;
+      max-width: 100px;
+      max-height: 100px;
       border-radius: 5px;
-      max-height: 200px;
-    }
-
-    .message a {
-      color: #007bff;
-      text-decoration: none;
+      margin-right: 10px;
     }
 
     .message-right {
@@ -89,10 +84,6 @@
     .message-deleted {
       color: red;
       font-style: italic;
-    }
-
-    .delete-checkbox {
-      margin-right: 10px;
     }
 
     .input-container {
@@ -157,23 +148,112 @@
     </div>
     <button onclick="logout()">Logout</button>
   </header>
+
   <div class="chat-container">
     <div class="messages" id="messages"></div>
     <div class="input-container">
-      <input type="text" id="messageInput" placeholder="Type a message..." oninput="showTypingIndicator()">
-      <input type="file" id="fileInput">
+      <input type="file" id="fileInput" accept="image/*,video/*,application/vnd.android.package-archive" onchange="sendFile()">
+      <input type="text" id="messageInput" placeholder="Type a message..." oninput="typing()">
       <button onclick="sendMessage()">Send</button>
-      ${localStorage.getItem('isAdmin') === 'true' ? '<button onclick="deleteMessages()">Delete Selected</button>' : ''}
     </div>
   </div>
 
   <script>
-    const currentUsername = localStorage.getItem('currentUser');
-    const currentProfilePic = localStorage.getItem('currentProfilePic');
+    const messagesContainer = document.getElementById('messages');
+    const messageInput = document.getElementById('messageInput');
+    const fileInput = document.getElementById('fileInput');
+    const currentProfilePic = document.getElementById('currentProfilePic');
+    const currentUsername = document.getElementById('currentUsername');
+
+    // Load user data from localStorage
+    const username = localStorage.getItem('currentUser');
+    const profilePic = localStorage.getItem('currentProfilePic');
     const isAdmin = localStorage.getItem('isAdmin') === 'true';
 
-    document.getElementById('currentUsername').innerText = currentUsername;
-    document.getElementById('currentProfilePic').src = currentProfilePic;
+    if (username) {
+      currentUsername.textContent = username;
+      currentProfilePic.src = profilePic;
+    } else {
+      window.location.href = 'index.html';
+    }
+
+    function sendMessage() {
+      const text = messageInput.value;
+      if (text.trim() === '') return;
+
+      const message = {
+        type: 'text',
+        sender: username,
+        content: text,
+        timestamp: new Date().toISOString()
+      };
+
+      saveMessage(message);
+      displayMessages();
+      messageInput.value = '';
+    }
+
+    function sendFile() {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onloadend = function() {
+        const message = {
+          type: file.type.startsWith('image/') ? 'image' :
+               file.type.startsWith('video/') ? 'video' : 'file',
+          sender: username,
+          content: reader.result,
+          timestamp: new Date().toISOString()
+        };
+
+        saveMessage(message);
+        displayMessages();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function saveMessage(message) {
+      const messages = JSON.parse(localStorage.getItem('messages')) || [];
+      messages.push(message);
+      localStorage.setItem('messages', JSON.stringify(messages));
+    }
+
+    function displayMessages() {
+      const messages = JSON.parse(localStorage.getItem('messages')) || [];
+      messagesContainer.innerHTML = '';
+      messages.forEach(msg => {
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message ' + (msg.sender === username ? 'message-right' : 'message-left');
+        
+        if (msg.type === 'text') {
+          messageElement.textContent = msg.content;
+        } else if (msg.type === 'image') {
+          const img = document.createElement('img');
+          img.src = msg.content;
+          messageElement.appendChild(img);
+        } else if (msg.type === 'video') {
+          const video = document.createElement('video');
+          video.src = msg.content;
+          video.controls = true;
+          messageElement.appendChild(video);
+        } else {
+          const link = document.createElement('a');
+          link.href = msg.content;
+          link.textContent = 'Download File';
+          link.download = true;
+          messageElement.appendChild(link);
+        }
+
+        messagesContainer.appendChild(messageElement);
+      });
+
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function typing() {
+      // Handle "is typing" functionality
+    }
 
     function logout() {
       localStorage.removeItem('currentUser');
@@ -182,103 +262,8 @@
       window.location.href = 'index.html';
     }
 
-    function sendMessage() {
-      const messageInput = document.getElementById('messageInput');
-      const fileInput = document.getElementById('fileInput');
-      const message = messageInput.value;
-      const file = fileInput.files[0];
-
-      if (message.trim() !== '' || file) {
-        const reader = new FileReader();
-        reader.onloadend = function() {
-          const chatMessage = {
-            username: currentUsername,
-            profilePic: currentProfilePic,
-            content: message || reader.result,
-            type: file ? file.type.split('/')[0] : 'text',
-            timestamp: new Date().toISOString(),
-            deleted: false
-          };
-
-          const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-          chatHistory.push(chatMessage);
-          localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
-          displayMessages();
-
-          messageInput.value = '';
-          fileInput.value = '';
-        };
-
-        if (file) {
-          reader.readAsDataURL(file);
-        } else {
-          reader.onloadend();
-        }
-      }
-    }
-
-    function displayMessages() {
-      const messagesContainer = document.getElementById('messages');
-      const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-      messagesContainer.innerHTML = '';
-
-      chatHistory.forEach((message, index) => {
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', message.username === currentUsername ? 'message-right' : 'message-left');
-        if (message.deleted) {
-          messageDiv.innerHTML = `<span class="message-deleted">This message was deleted by ${message.deletedBy}</span>`;
-        } else {
-          messageDiv.innerHTML = `
-            ${isAdmin ? `<input type="checkbox" class="delete-checkbox" data-index="${index}">` : ''}
-            <img class="profile-pic" src="${message.profilePic}" alt="Profile Picture">
-            <div>
-              <strong>${message.username}</strong>
-              <p>${formatMessageContent(message)}</p>
-            </div>
-            ${message.username === currentUsername || isAdmin ? `<button onclick="deleteMessage(${index})">Delete</button>` : ''}
-          `;
-        }
-        messagesContainer.appendChild(messageDiv);
-      });
-    }
-
-    function formatMessageContent(message) {
-      if (message.type === 'text') {
-        return message.content;
-      } else if (message.type === 'image') {
-        return `<img src="${message.content}" alt="Image">`;
-      } else if (message.type === 'video') {
-        return `<video controls><source src="${message.content}" type="video/mp4"></video>`;
-      } else {
-        return `<a href="${message.content}" download>Download File</a>`;
-      }
-    }
-
-    function deleteMessage(index) {
-      const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-      chatHistory[index].deleted = true;
-      chatHistory[index].deletedBy = isAdmin ? 'admin' : 'user';
-      localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
-      displayMessages();
-    }
-
-    function deleteMessages() {
-      const checkboxes = document.querySelectorAll('.delete-checkbox:checked');
-      const chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
-      checkboxes.forEach(checkbox => {
-        const index = checkbox.dataset.index;
-        chatHistory[index].deleted = true;
-        chatHistory[index].deletedBy = 'admin';
-      });
-      localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
-      displayMessages();
-    }
-
-    function showTypingIndicator() {
-      // Implement typing indicator logic here
-    }
-
-    displayMessages();
+    // Polling to sync messages
+    setInterval(displayMessages, 2000);
   </script>
 </body>
 </html>
